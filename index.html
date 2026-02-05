@@ -1,0 +1,212 @@
+
+
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<title>Békés dinamikus labirintus</title>
+<style>
+body {
+  margin: 0;
+  background: #111;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+canvas {
+  background: #000;
+  image-rendering: pixelated;
+}
+</style>
+</head>
+<body>
+<canvas id="c" width="540" height="540"></canvas>
+
+<script>
+function breaksUniform2x2(cx, cy) {
+  for (let y = cy - 1; y <= cy; y++) {
+    for (let x = cx - 1; x <= cx; x++) {
+      if (x < 0 || y < 0 || x+1 >= GRID || y+1 >= GRID) continue;
+
+      const s = grid[y][x].state;
+      if (s === "white") continue;
+
+      if (
+        grid[y][x+1].state === s &&
+        grid[y+1][x].state === s &&
+        grid[y+1][x+1].state === s
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+const TILE = 20;
+const GRID = 27;
+const RADIUS = 4;
+const SAVE_KEY = "labyrinth-save-v2";
+
+const COLORS = {
+  white: "#ffffff",
+  wall: "#3fa34d",
+  path: "#8b5a2b",
+  player: "#ff5555"
+};
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+let player;
+let grid;
+
+// maszk
+const mask = [];
+for (let y = -RADIUS; y <= RADIUS; y++) {
+  for (let x = -RADIUS; x <= RADIUS; x++) {
+    if (Math.abs(x) + Math.abs(y) <= RADIUS + 1) {
+      mask.push({x,y});
+    }
+  }
+}
+
+function inMask(px, py, x, y) {
+  return mask.some(m => px + m.x === x && py + m.y === y);
+}
+
+// ---- mentés / betöltés ----
+function save() {
+  localStorage.setItem(SAVE_KEY, JSON.stringify({grid, player}));
+}
+
+function load() {
+  const data = localStorage.getItem(SAVE_KEY);
+  if (data) {
+    ({grid, player} = JSON.parse(data));
+    return true;
+  }
+  return false;
+}
+
+// ---- inicializálás ----
+function init() {
+  if (load()) return;
+
+  player = {x: Math.floor(GRID/2), y: Math.floor(GRID/2)};
+  grid = Array.from({length: GRID}, () =>
+    Array.from({length: GRID}, () => ({state:"white", seen:false}))
+  );
+}
+
+// ---- 2x2 homogenitás ellenőrzés ----
+function breaksUniform2x2(cx, cy) {
+  for (let y = cy - 1; y <= cy; y++) {
+    for (let x = cx - 1; x <= cx; x++) {
+      if (x < 0 || y < 0 || x+1 >= GRID || y+1 >= GRID) continue;
+
+      const s = grid[y][x].state;
+      if (s === "white") continue;
+
+      if (
+        grid[y][x+1].state === s &&
+        grid[y+1][x].state === s &&
+        grid[y+1][x+1].state === s
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ---- látótér frissítés ----
+function updateVisibility() {
+  // kifelé → fehér
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      if (!inMask(player.x, player.y, x, y)) {
+        grid[y][x].state = "white";
+        grid[y][x].seen = false;
+      }
+    }
+  }
+
+  let exits = [];
+
+  // belépés → meglepetés
+  mask.forEach(m => {
+    const x = player.x + m.x;
+    const y = player.y + m.y;
+    if (x<0||y<0||x>=GRID||y>=GRID) return;
+
+    const c = grid[y][x];
+    if (!c.seen) {
+      c.state = Math.random() < 0.6 ? "path" : "wall";
+      c.seen = true;
+
+      if (breaksUniform2x2(x,y)) {
+        c.state = c.state === "path" ? "wall" : "path";
+      }
+    }
+
+    // kivezető jelölt
+    if (Math.abs(m.x) + Math.abs(m.y) >= RADIUS) {
+      exits.push({x,y});
+    }
+  });
+
+  // garantált kivezetés
+  const hasExit = exits.some(e => grid[e.y][e.x].state === "path");
+  if (!hasExit && exits.length) {
+    const e = exits[Math.floor(Math.random()*exits.length)];
+    grid[e.y][e.x].state = "path";
+    grid[e.y][e.x].seen = true;
+  }
+
+  grid[player.y][player.x].state = "path";
+  grid[player.y][player.x].seen = true;
+
+  save();
+}
+
+// ---- rajzolás ----
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      ctx.fillStyle = COLORS[grid[y][x].state];
+      ctx.fillRect(x*TILE, y*TILE, TILE-1, TILE-1);
+    }
+  }
+  ctx.fillStyle = COLORS.player;
+  ctx.fillRect(player.x*TILE, player.y*TILE, TILE-1, TILE-1);
+}
+
+// ---- mozgás ----
+function tryMove(dx,dy) {
+  const nx = player.x+dx;
+  const ny = player.y+dy;
+  if (nx<0||ny<0||nx>=GRID||ny>=GRID) return;
+  if (grid[ny][nx].state === "path") {
+    player.x = nx;
+    player.y = ny;
+    updateVisibility();
+  }
+}
+
+document.addEventListener("keydown", e => {
+  if (["ArrowUp","w"].includes(e.key)) tryMove(0,-1);
+  if (["ArrowDown","s"].includes(e.key)) tryMove(0,1);
+  if (["ArrowLeft","a"].includes(e.key)) tryMove(-1,0);
+  if (["ArrowRight","d"].includes(e.key)) tryMove(1,0);
+});
+
+init();
+updateVisibility();
+setInterval(draw, 50);
+</script>
+</body>
+</html>
+<!--Made with AI.-->
