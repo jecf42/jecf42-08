@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="hu">
 <head>
@@ -16,11 +17,58 @@ canvas {
   background: #000;
   image-rendering: pixelated;
 }
+:root {
+  --accent: #ffffff;
+}
+
+#controls {
+  position: absolute;
+  bottom: 30px;
+  right: 30px;
+  display: grid;
+  grid-template-columns: repeat(3, 80px);
+  gap: 10px;
+  z-index: 20;
+}
+
+.ctrl-btn {
+  height: 80px;
+  background: rgba(0,0,0,0.6);
+  border: 2px solid #ffffff;
+  color: var(--accent);
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: skewX(-10deg);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ctrl-btn:active {
+  background: rgba(255,255,255,0.15);
+  color: var(--accent);
+  border-color: #ffffff;
+}
+
+.ctrl-btn:active {
+  background: var(--accent);
+  color: #000;
+}
+
 </style>
 </head>
 <body>
 <canvas id="c" width="540" height="540"></canvas>
+<div id="controls">
+  <div></div>
+  <div class="ctrl-btn" data-dx="0" data-dy="-1">▲</div>
+  <div></div>
 
+  <div class="ctrl-btn" data-dx="-1" data-dy="0">◀</div>
+  <div class="ctrl-btn" data-dx="0" data-dy="1">▼</div>
+  <div class="ctrl-btn" data-dx="1" data-dy="0">▶</div>
+</div>
 <script>
 function breaksUniform2x2(cx, cy) {
   for (let y = cy - 1; y <= cy; y++) {
@@ -199,6 +247,20 @@ document.addEventListener("keydown", e => {
   if (["ArrowDown","s"].includes(e.key)) tryMove(0,1);
   if (["ArrowLeft","a"].includes(e.key)) tryMove(-1,0);
   if (["ArrowRight","d"].includes(e.key)) tryMove(1,0);
+});
+
+document.querySelectorAll(".ctrl-btn").forEach(btn => {
+  const dx = Number(btn.dataset.dx);
+  const dy = Number(btn.dataset.dy);
+
+  const move = e => {
+    e.preventDefault();
+    tryMove(dx, dy);
+    draw();
+  };
+
+  btn.addEventListener("click", move);
+  btn.addEventListener("touchstart", move);
 });
 
 init();
